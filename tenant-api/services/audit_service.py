@@ -1,9 +1,9 @@
+from typing import Optional
 from datetime import datetime
-from typing import Optional, Dict, Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.audit import AuditLog
+from models.audit import AuditLog, AuditAction, AuditSeverity
 
 
 class AuditService:
@@ -14,34 +14,83 @@ class AuditService:
     
     async def log(
         self,
-        action: str,
-        actor_id: str,
-        actor_role: str,
-        target_type: Optional[str] = None,
-        target_id: Optional[str] = None,
-        target_name: Optional[str] = None,
-        before_state: Optional[Dict[str, Any]] = None,
-        after_state: Optional[Dict[str, Any]] = None,
-        result: str = "success",
-        reason: Optional[str] = None,
-        workspace_id: Optional[str] = None,
-        project_id: Optional[str] = None,
+        org_id: str,
+        action: AuditAction | str,
+        resource_type: str,
+        resource_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+        severity: AuditSeverity = AuditSeverity.INFO,
+        details: Optional[dict] = None,
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None,
     ) -> AuditLog:
         """Create an audit log entry."""
+        if isinstance(action, str):
+            try:
+                action = AuditAction(action)
+            except ValueError:
+                action = AuditAction.READ
+        
         log = AuditLog(
-            workspace_id=workspace_id,
-            project_id=project_id,
-            actor_id=actor_id,
-            actor_role=actor_role,
+            org_id=org_id,
+            user_id=user_id,
             action=action,
-            target_type=target_type,
-            target_id=target_id,
-            target_name=target_name,
-            before_state=before_state,
-            after_state=after_state,
-            result=result,
-            reason=reason,
+            resource_type=resource_type,
+            resource_id=resource_id,
+            severity=severity,
+            details=details or {},
+            ip_address=ip_address,
+            user_agent=user_agent,
         )
+        
         self.db.add(log)
         await self.db.commit()
+        await self.db.refresh(log)
+        
         return log
+    
+    async def log_permission_denied(
+        self,
+        org_id: str,
+        user_id: str,
+        resource_type: str,
+        resource_id: Optional[str] = None,
+        attempted_action: str = "access",
+        ip_address: Optional[str] = None,
+    ) -> AuditLog:
+        """Log a permission denied event."""
+        return await self.log(
+            org_id=org_id,
+            user_id=user_id,
+            action=AuditAction.PERMISSION_DENIED,
+            resource_type=resource_type,
+            resource_id=resource_id,
+            severity=AuditSeverity.WARNING,
+            details={"attempted_action": attempted_action},
+            ip_address=ip_address,
+        )
+    
+    async def log_ai_interaction(
+        self,
+        org_id: str,
+        user_id: str,
+        conversation_id: str,
+        message_type: str,  # "query" or "response"
+        tokens_used: int = 0,
+        latency_ms: int = 0,
+    ) -> AuditLog:
+        """Log an AI interaction."""
+        action = AuditAction.AI_QUERY if message_type == "query" else AuditAction.AI_RESPONSE
+        
+        return await self.log(
+            org_id=org_id,
+            user_id=user_id,
+            action=action,
+            resource_type="ai_conversation",
+            resource_id=conversation_id,
+            severity=AuditSeverity.INFO,
+            details={
+                "tokens_used": tokens_used,
+                "latency_ms": latency_ms,
+            },
+        )

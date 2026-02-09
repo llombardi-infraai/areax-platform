@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  tenant-api:
+    build: .
+    ports:
+      - "8081:8081"
+    environment:
+      - DATABASE_URL_TEMPLATE=postgresql+asyncpg://postgres:postgres@db:5432/areax_{db}
+      - REDIS_URL=redis://redis:6379
+      - MOONSHOT_API_KEY=${MOONSHOT_API_KEY}
+      - CONTROL_PLANE_URL=http://control-plane:8080
+      - JWT_PUBLIC_KEY=${JWT_PUBLIC_KEY}
+      - FILE_STORAGE_BUCKET=areax-files
+      - FILE_STORAGE_ENDPOINT=https://nyc3.digitaloceanspaces.com
+      - PORT=8081
+      - LOG_LEVEL=INFO
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - ./:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8081 --reload
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=areax_default
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  postgres_data:
+  redis_data:

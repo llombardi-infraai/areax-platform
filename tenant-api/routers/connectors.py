@@ -1,6 +1,7 @@
 from uuid import UUID
 from typing import List, Dict, Any
 from datetime import datetime
+import json
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select, and_
@@ -378,6 +379,3 @@ async def test_connector(
         message=message,
         details=details,
     )
-
-
-import json

@@ -1,44 +1,23 @@
-# Build stage
-FROM python:3.11-slim as builder
+FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir --user -r requirements.txt
-
-# Runtime stage
-FROM python:3.11-slim
-
-WORKDIR /app
-
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq5 \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy Python packages from builder
-COPY --from=builder /root/.local /root/.local
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
-COPY app/ ./app/
-COPY models/ ./models/
-COPY routers/ ./routers/
-COPY services/ ./services/
-COPY migrations/ ./migrations/
+COPY . .
 
-# Make sure scripts in .local are usable
-ENV PATH=/root/.local/bin:$PATH
-
-# Environment variables
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
+# Set environment variables
+ENV PYTHONPATH=/app
+ENV PORT=8081
 
 # Expose port
 EXPOSE 8081
