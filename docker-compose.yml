@@ -1,0 +1,112 @@
+version: '3.8'
+
+services:
+  # PostgreSQL for Control Plane
+  postgres-control:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: areax
+      POSTGRES_PASSWORD: areax_password
+      POSTGRES_DB: control_plane
+    volumes:
+      - postgres_control_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U areax -d control_plane"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL for Tenant (default)
+  postgres-tenant:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: areax
+      POSTGRES_PASSWORD: areax_password
+      POSTGRES_DB: tenant_default
+    volumes:
+      - postgres_tenant_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U areax -d tenant_default"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Control Plane Service
+  control-plane:
+    build:
+      context: ./control-plane
+      dockerfile: Dockerfile
+    environment:
+      PORT: "8080"
+      DATABASE_URL: "postgres://areax:areax_password@postgres-control:5432/control_plane?sslmode=disable"
+      REDIS_URL: "redis://redis:6379"
+      JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY}
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres-control:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./control-plane:/app
+    command: ["./control-plane"]
+
+  # Tenant API Service
+  tenant-api:
+    build:
+      context: ./tenant-api
+      dockerfile: Dockerfile
+    environment:
+      PORT: "8081"
+      DATABASE_URL_TEMPLATE: "postgresql+asyncpg://areax:areax_password@{host}/{db}"
+      REDIS_URL: "redis://redis:6379"
+      MOONSHOT_API_KEY: ${MOONSHOT_API_KEY}
+      CONTROL_PLANE_URL: "http://control-plane:8080"
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres-tenant:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      control-plane:
+        condition: service_started
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    environment:
+      VITE_CONTROL_API_URL: "http://localhost:8080/v1"
+      VITE_TENANT_API_URL: "http://localhost:8081/v1"
+    ports:
+      - "5173:80"
+    depends_on:
+      - control-plane
+      - tenant-api
+
+volumes:
+  postgres_control_data:
+  postgres_tenant_data:
+  redis_data:

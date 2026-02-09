@@ -8,6 +8,12 @@ import Login from './pages/Login'
 import Home from './pages/Home'
 import Workspaces from './pages/Workspaces'
 import Security from './pages/Security'
+import AIChat from './pages/AIChat'
+import Blueprints from './pages/Blueprints'
+import DataControl from './pages/DataControl'
+import KnowledgeBase from './pages/KnowledgeBase'
+import Connectors from './pages/Connectors'
+import Notifications from './pages/Notifications'
 
 // Layouts
 import MainLayout from './components/layout/MainLayout'
@@ -18,9 +24,7 @@ function App() {
   const { isLoading, setLoading } = useAuthStore()
 
   useEffect(() => {
-    // Check for existing session
     const init = async () => {
-      // TODO: Validate token with API
       setLoading(false)
     }
     init()
@@ -47,6 +51,13 @@ function App() {
           <Route path={ROUTES.HOME} element={<Home />} />
           <Route path={ROUTES.WORKSPACES} element={<Workspaces />} />
           <Route path={ROUTES.SECURITY} element={<Security />} />
+          <Route path={ROUTES.AI_CHAT} element={<AIChat />} />
+          <Route path={ROUTES.BLUEPRINTS} element={<Blueprints />} />
+          <Route path={ROUTES.AI_BLUEPRINT} element={<Blueprints />} />
+          <Route path={ROUTES.DATA_RETENTION} element={<DataControl />} />
+          <Route path={ROUTES.KNOWLEDGE} element={<KnowledgeBase />} />
+          <Route path={ROUTES.CONNECTORS} element={<Connectors />} />
+          <Route path={ROUTES.NOTIFICATIONS} element={<Notifications />} />
         </Route>
       </Route>
 
